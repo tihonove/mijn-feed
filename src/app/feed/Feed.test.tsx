@@ -3,6 +3,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { FeedCard } from "../../shared/types.ts";
+import { ApiError } from "../api/apiClient.ts";
 import {
     deckCard,
     fakeApi,
@@ -96,6 +97,17 @@ describe("Feed", () => {
             expect(api.event).toHaveBeenCalledWith("item:b", { type: "boring" });
         });
         await screen.findByText("Поняла, такого поменьше");
+    });
+
+    it("shows the error when a grade cannot be sent", async () => {
+        // a 4xx is our bug, not the network: the queue rethrows it and the feed shows it
+        const event = vi.fn(() => Promise.reject(new ApiError(400, "плохая оценка")));
+        mount(fakeApi({ feed: vi.fn(() => Promise.resolve({ cards, settings: SETTINGS })), event }));
+        await screen.findByLabelText("Карточка 1");
+        const good = screen.getByText("хорошо").closest("button")!;
+        fireEvent.pointerDown(good);
+        fireEvent.pointerUp(good);
+        await screen.findByText("плохая оценка");
     });
 
     it("toggles the global sound, persists it and speaks the current card", async () => {
