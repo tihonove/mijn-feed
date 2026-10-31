@@ -9,4 +9,4 @@ resources:
 images:
   - name: app
     newName: ghcr.io/tihonove/mijn-feed
-    newTag: 0fa3980-3
+    newTag: af80dba-4
