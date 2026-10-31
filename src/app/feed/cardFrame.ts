@@ -83,8 +83,6 @@ export const BRIDGE_JS = `
 })();
 `;
 
-const esc = (s: string) => s.replace(/<\/script/gi, "<\\/script");
-
 export function tintOf(card: FeedCard): string {
     const t = card.meta.tint;
     if (typeof t !== "string") return TINTS.oranje ?? "#ff6a1a";
@@ -105,7 +103,7 @@ export function cardDocument(card: FeedCard): string {
 <link rel="stylesheet" href="${FONTS}">
 <style>:root{--tint:${tintOf(card)}}${BASE_CSS}</style>
 <script>${cardIdJs(card)}${BRIDGE_JS}</script>
-</head><body>${esc(body)}</body></html>`;
+</head><body>${body}</body></html>`;
 }
 
 const cardIdJs = (card: FeedCard) => `window.__cardId=${JSON.stringify(card.id)};`;

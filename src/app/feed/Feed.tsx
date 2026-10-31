@@ -46,7 +46,7 @@ export function Feed() {
                     if (fresh.length === 0) setExhausted(true);
                     return [...prev, ...fresh];
                 });
-                if (!append && res.cards.length === 0) setExhausted(true);
+                if (!append) setExhausted(res.cards.length === 0);
                 setError(null);
             } catch (e) {
                 setError(e instanceof Error ? e.message : String(e));

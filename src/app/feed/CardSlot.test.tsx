@@ -50,8 +50,12 @@ describe("CardSlot", () => {
     });
 
     it("labels items by stream only and tolerates a missing frame when posting", () => {
-        const { container } = render(<CardSlot card={itemCard("n")} index={0} mounted active onFrame={vi.fn()} />);
+        const { container, rerender } = render(
+            <CardSlot card={itemCard("n")} index={0} mounted active onFrame={vi.fn()} />,
+        );
         expect(container.querySelector(".stream-tag")?.textContent).toBe("Новости");
+        rerender(<CardSlot card={{ ...itemCard("n"), stream: "weer" }} index={0} mounted active onFrame={vi.fn()} />);
+        expect(container.querySelector(".stream-tag")?.textContent).toBe("weer");
         expect(() => {
             postToCard(null, { type: "active" });
         }).not.toThrow();

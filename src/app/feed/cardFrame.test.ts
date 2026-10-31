@@ -23,11 +23,11 @@ describe("cardDocument", () => {
         expect(doc).toContain("fonts.googleapis.com");
     });
 
-    it("keeps a producer's own .inner layout and escapes closing script tags", () => {
-        const html = '<div class="inner">x</div><script>var s="</script>";</script>';
+    it("keeps a producer's own .inner layout and its script tags verbatim", () => {
+        const html = '<div class="inner">x</div><script>card.on("active", function () {});</script>';
         const doc = cardDocument(card(html));
         expect(doc).not.toContain('<div class="inner"><div class="inner">');
-        expect(doc).toContain('var s="<\\/script>');
+        expect(doc).toContain(`<body>${html}</body>`);
     });
 
     it("only injects the bridge into a full page", () => {

@@ -136,7 +136,8 @@ export class DeckService implements IDeckService {
             ),
             updateFacet: raw.prepare("UPDATE facets SET card = ?, state = ?, due = ?, suspended = ? WHERE id = ?"),
             insertPresentation: raw.prepare(
-                "INSERT INTO presentations (id, facet_id, html, audio, meta, created_at) VALUES (?,?,?,?,?,?)",
+                `INSERT INTO presentations (id, facet_id, html, audio, meta, created_at) VALUES (?,?,?,?,?,?)
+                 ON CONFLICT(id) DO UPDATE SET html = excluded.html, audio = excluded.audio, meta = excluded.meta`,
             ),
             presentationFacet: raw.prepare("SELECT facet_id FROM presentations WHERE id = ?"),
             bestPresentation: raw.prepare(

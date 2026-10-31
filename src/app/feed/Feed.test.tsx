@@ -145,6 +145,18 @@ describe("Feed", () => {
         await screen.findByLabelText("Карточка 1");
     });
 
+    it("refreshing from the end card brings the feed back when the server has cards again", async () => {
+        const feed = vi
+            .fn()
+            .mockResolvedValueOnce({ cards: [], settings: SETTINGS })
+            .mockResolvedValue({ cards, settings: SETTINGS });
+        mount(fakeApi({ feed }));
+        await screen.findByText("На сегодня всё");
+        fireEvent.click(screen.getByText("Обновить"));
+        await screen.findByLabelText("Карточка 1");
+        expect(screen.queryByText("На сегодня всё")).toBeNull();
+    });
+
     it("loads more near the end and stops when nothing new arrives", async () => {
         const feed = vi.fn(() => Promise.resolve({ cards, settings: SETTINGS }));
         const { container } = mount(fakeApi({ feed }));
