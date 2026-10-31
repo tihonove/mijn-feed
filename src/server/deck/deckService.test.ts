@@ -41,7 +41,10 @@ describe("DeckService.addNote", () => {
     });
 
     it("re-publishing a presentation with the same id replaces it instead of duplicating", () => {
-        const pres = (html: string) => ({ ...word("w"), facets: [{ facet: "recognize", presentations: [{ id: "p1", html }] }] });
+        const pres = (html: string) => ({
+            ...word("w"),
+            facets: [{ facet: "recognize", presentations: [{ id: "p1", html }] }],
+        });
         deck.addNote(pres("<p>v1</p>"));
         expect(deck.addNote(pres("<p>v2</p>")).facets[0]!.presentations).toEqual(["p1"]);
         expect(deck.pick(1)[0]?.presentation?.html).toBe("<p>v2</p>");
