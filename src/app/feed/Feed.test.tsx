@@ -185,7 +185,7 @@ describe("Feed", () => {
         const feed = vi
             .fn()
             .mockResolvedValueOnce({ cards, settings: SETTINGS })
-            .mockResolvedValue({ cards: cards.slice(3), settings: SETTINGS }); // d, e, f: all still ahead
+            .mockResolvedValue({ cards: cards.slice(4), settings: SETTINGS }); // e, f: still ahead of the viewer
         const { container } = mount(fakeApi({ feed }));
         await screen.findByLabelText("Карточка 1");
         await flushEffects();
@@ -195,7 +195,37 @@ describe("Feed", () => {
         await waitFor(() => {
             expect(feed).toHaveBeenCalledTimes(2);
         });
+        // nothing new, but the viewer is not on the last card yet: no end card, the question is asked again later
+        expect(screen.queryByText("На сегодня всё")).toBeNull();
+        act(() => {
+            io.show(container.querySelector('.slot[data-index="5"]')!);
+        });
+        await waitFor(() => {
+            expect(feed).toHaveBeenCalledTimes(3);
+        });
         await screen.findByText("На сегодня всё");
         expect(container.querySelectorAll(".slot[aria-label]")).toHaveLength(6);
+    });
+
+    it("asks again after an empty page once the viewer moves on, and continues when cards come back", async () => {
+        const three = cards.slice(0, 3);
+        const feed = vi
+            .fn()
+            .mockResolvedValueOnce({ cards: three, settings: SETTINGS }) // initial
+            .mockResolvedValueOnce({ cards: three, settings: SETTINGS }) // prefetch at card 1: nothing new
+            .mockResolvedValue({ cards: [three[2]!, three[0]!], settings: SETTINGS }); // later: a is behind → fresh
+        const { container } = mount(fakeApi({ feed }));
+        await screen.findByLabelText("Карточка 1");
+        await waitFor(() => {
+            expect(feed).toHaveBeenCalledTimes(2);
+        });
+        await flushEffects();
+        act(() => {
+            io.show(container.querySelector('.slot[data-index="2"]')!);
+        });
+        await waitFor(() => {
+            expect(container.querySelectorAll(".slot[aria-label]")).toHaveLength(4);
+        });
+        expect(screen.queryByText("На сегодня всё")).toBeNull();
     });
 });

@@ -50,6 +50,11 @@
     npm run typecheck
     npm run lint
 
+Сквозные тесты на Playwright: `npm run test:e2e` (первый раз `npx playwright install chromium`). Каждый тест
+поднимает свой сервер со своей базой во временной папке и ходит в собранное приложение настоящим мобильным
+Chromium: вход, карточки в iframe и их скрипты, оценки, норма и цикл ленты, настройки, статистика, PWA.
+Спеки в `e2e/`, отчёт при падении в `playwright-report/`. `E2E_SKIP_BUILD=1` пропускает пересборку.
+
 ## Переменные окружения
 
 См. `.env.example`. `PUBLIC_ORIGIN=https://feed.tihonove.dev` в проде (куки Secure, redirect URI для Google).

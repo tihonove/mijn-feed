@@ -25,7 +25,7 @@ export default tseslint.config(
         },
     },
     {
-        files: ["src/**/*.test.ts", "src/**/*.test.tsx"],
+        files: ["src/**/*.test.ts", "src/**/*.test.tsx", "e2e/**/*.ts"],
         rules: { "@typescript-eslint/no-non-null-assertion": "off", "@typescript-eslint/unbound-method": "off" },
     },
     eslintPluginPrettier,

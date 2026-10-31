@@ -35,6 +35,8 @@ export function Feed() {
     const frames = useRef(new Map<string, HTMLIFrameElement>());
     const seen = useRef(new Set<string>());
     const seq = useRef(0);
+    /** Position at which the last "load more" was issued: one request per step near the end, retried as the viewer moves. */
+    const loadedAt = useRef<number | null>(null);
     const indexRef = useRef(0);
     indexRef.current = index;
     const { toast, Toast } = useToast();
@@ -58,10 +60,13 @@ export function Feed() {
                     const ahead = new Set(prev.slice(Math.max(0, indexRef.current - BEHIND)).map((s) => s.card.id));
                     const infoSeen = new Set(prev.filter((s) => s.card.id.startsWith("info:")).map((s) => s.card.id));
                     const fresh = res.cards.filter((c) => !ahead.has(c.id) && !infoSeen.has(c.id));
-                    if (fresh.length === 0) setExhausted(true);
+                    setExhausted(fresh.length === 0);
                     return [...prev, ...fresh.map(showing)];
                 });
-                if (!append) setExhausted(res.cards.length === 0);
+                if (!append) {
+                    setExhausted(res.cards.length === 0);
+                    loadedAt.current = null;
+                }
                 setError(null);
             } catch (e) {
                 setError(e instanceof Error ? e.message : String(e));
@@ -109,7 +114,12 @@ export function Feed() {
             seen.current.add(currentShowing.uid);
             void events.send(current.id, { type: "seen" }).catch(() => undefined);
         }, SEEN_DELAY);
-        if (!loading && !exhausted && index >= showings.length - 4) void load(true);
+        // Near the end: ask for more, once per position. An empty answer is not final: a step later the cards
+        // behind may be served again (the feed loops), so the question is asked again from the next card.
+        if (!loading && index >= showings.length - 4 && loadedAt.current !== index) {
+            loadedAt.current = index;
+            void load(true);
+        }
         return () => {
             clearTimeout(t);
         };
@@ -223,7 +233,7 @@ export function Feed() {
         <>
             <div className="feed" ref={feedRef}>
                 {slots}
-                {(exhausted || (!loading && showings.length === 0)) && (
+                {((exhausted && index >= showings.length - 1) || (!loading && showings.length === 0)) && (
                     <section className="slot" data-index={showings.length}>
                         <div className="end">
                             <h2>На сегодня всё</h2>
