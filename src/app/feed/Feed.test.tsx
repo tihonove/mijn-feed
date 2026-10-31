@@ -2,6 +2,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { FeedCard } from "../../shared/types.ts";
 import {
     deckCard,
     fakeApi,
@@ -121,17 +122,40 @@ describe("Feed", () => {
                 window.dispatchEvent(new MessageEvent("message", { data }));
             });
         };
-        post({ mijnfeed: CARD_PROTOCOL, card: "nl:a", type: "play" });
+        post({ mijnfeed: CARD_PROTOCOL, card: "nl:a#1", type: "play" });
         expect(speech.spoken).toEqual(["a"]);
-        post({ mijnfeed: CARD_PROTOCOL, card: "nl:zzz", type: "play" }); // unknown card: ignored
+        post({ mijnfeed: CARD_PROTOCOL, card: "nl:zzz#1", type: "play" }); // unknown card: ignored
         expect(speech.spoken).toEqual(["a"]);
-        post({ mijnfeed: CARD_PROTOCOL, card: "nl:a", type: "answer", correct: true });
+        post({ mijnfeed: CARD_PROTOCOL, card: "nl:a", type: "answer", correct: true }); // bare id: not a showing
+        expect(api.event).not.toHaveBeenCalledWith("nl:a", { type: "answer", correct: true });
+        post({ mijnfeed: CARD_PROTOCOL, card: "nl:a#1", type: "answer", correct: true });
         await waitFor(() => {
             expect(api.event).toHaveBeenCalledWith("nl:a", { type: "answer", correct: true });
         });
         await screen.findByText("Верно");
         post({ type: "answer", correct: false }); // not ours: ignored
-        post({ mijnfeed: CARD_PROTOCOL, card: "nl:a", type: "ready" });
+        post({ mijnfeed: CARD_PROTOCOL, card: "nl:a#1", type: "ready" });
+    });
+
+    it("loops: cards already behind come round again, cards ahead and info cards do not repeat", async () => {
+        const info: FeedCard = { ...itemCard("q"), id: "info:quota:1", stream: "nl", kind: "info" };
+        const page = [deckCard("a"), deckCard("b"), info, deckCard("c"), deckCard("d"), deckCard("e")];
+        const feed = vi.fn(() => Promise.resolve({ cards: page, settings: SETTINGS }));
+        const { container } = mount(fakeApi({ feed }));
+        await screen.findByLabelText("Карточка 1");
+        await flushEffects();
+        act(() => {
+            io.show(container.querySelector('.slot[data-index="3"]')!); // on "c": a, b, info are behind
+        });
+        await waitFor(() => {
+            expect(feed).toHaveBeenCalledTimes(2);
+        });
+        await waitFor(() => {
+            expect(container.querySelectorAll(".slot").length).toBe(8); // + a and b again, not info nor c/d/e
+        });
+        const ids = [...container.querySelectorAll(".slot[aria-label]")].map((el) => el.getAttribute("aria-label"));
+        expect(ids).toHaveLength(8);
+        expect(screen.queryByText("На сегодня всё")).toBeNull();
     });
 
     it("shows the end card when the feed is empty and an error with retry when loading fails", async () => {
@@ -157,8 +181,11 @@ describe("Feed", () => {
         expect(screen.queryByText("На сегодня всё")).toBeNull();
     });
 
-    it("loads more near the end and stops when nothing new arrives", async () => {
-        const feed = vi.fn(() => Promise.resolve({ cards, settings: SETTINGS }));
+    it("loads more near the end and ends only when the server has nothing beyond what is already ahead", async () => {
+        const feed = vi
+            .fn()
+            .mockResolvedValueOnce({ cards, settings: SETTINGS })
+            .mockResolvedValue({ cards: cards.slice(3), settings: SETTINGS }); // d, e, f: all still ahead
         const { container } = mount(fakeApi({ feed }));
         await screen.findByLabelText("Карточка 1");
         await flushEffects();
@@ -169,5 +196,6 @@ describe("Feed", () => {
             expect(feed).toHaveBeenCalledTimes(2);
         });
         await screen.findByText("На сегодня всё");
+        expect(container.querySelectorAll(".slot[aria-label]")).toHaveLength(6);
     });
 });

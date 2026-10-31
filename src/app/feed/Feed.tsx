@@ -15,9 +15,15 @@ const BEHIND = 1;
 const AHEAD = 2;
 const SEEN_DELAY = 800;
 
+/** One showing of a card. A card may be shown again later in the session, so each showing gets its own uid. */
+interface Showing {
+    uid: string;
+    card: FeedCard;
+}
+
 export function Feed() {
     const { api, sound, events } = useServices();
-    const [cards, setCards] = useState<FeedCard[]>([]);
+    const [showings, setShowings] = useState<Showing[]>([]);
     const [index, setIndex] = useState(0);
     const [exhausted, setExhausted] = useState(false);
     const [loading, setLoading] = useState(true);
@@ -28,9 +34,14 @@ export function Feed() {
     const feedRef = useRef<HTMLDivElement>(null);
     const frames = useRef(new Map<string, HTMLIFrameElement>());
     const seen = useRef(new Set<string>());
+    const seq = useRef(0);
+    const indexRef = useRef(0);
+    indexRef.current = index;
     const { toast, Toast } = useToast();
 
-    const current = cards[index] ?? null;
+    const currentShowing = showings[index] ?? null;
+    const current = currentShowing?.card ?? null;
+    const showing = (card: FeedCard): Showing => ({ uid: `${card.id}#${++seq.current}`, card });
 
     const load = useCallback(
         async (append: boolean) => {
@@ -39,12 +50,16 @@ export function Feed() {
                 const res = await api.feed(PAGE);
                 setSoundOn(res.settings.sound.enabled);
                 setGradeButtons(res.settings.grading.buttons);
-                setCards((prev) => {
-                    if (!append) return res.cards;
-                    const known = new Set(prev.map((c) => c.id));
-                    const fresh = res.cards.filter((c) => !known.has(c.id));
+                setShowings((prev) => {
+                    if (!append) return res.cards.map(showing);
+                    // The feed loops: a card that is already behind may come round again (the server re-serves
+                    // whatever is due or past the quota), but nothing is queued twice ahead of the viewer and a
+                    // service card is shown once per session.
+                    const ahead = new Set(prev.slice(Math.max(0, indexRef.current - BEHIND)).map((s) => s.card.id));
+                    const infoSeen = new Set(prev.filter((s) => s.card.id.startsWith("info:")).map((s) => s.card.id));
+                    const fresh = res.cards.filter((c) => !ahead.has(c.id) && !infoSeen.has(c.id));
                     if (fresh.length === 0) setExhausted(true);
-                    return [...prev, ...fresh];
+                    return [...prev, ...fresh.map(showing)];
                 });
                 if (!append) setExhausted(res.cards.length === 0);
                 setError(null);
@@ -82,33 +97,33 @@ export function Feed() {
         return () => {
             io.disconnect();
         };
-    }, [cards.length]);
+    }, [showings.length]);
 
     // Entering a card: sound, "seen", prefetch.
     useEffect(() => {
-        if (!current) return;
+        if (!current || !currentShowing) return;
         if (soundOn) void sound.play(current);
         else sound.stop();
         const t = setTimeout(() => {
-            if (seen.current.has(current.id)) return;
-            seen.current.add(current.id);
+            if (seen.current.has(currentShowing.uid)) return;
+            seen.current.add(currentShowing.uid);
             void events.send(current.id, { type: "seen" }).catch(() => undefined);
         }, SEEN_DELAY);
-        if (!loading && !exhausted && index >= cards.length - 4) void load(true);
+        if (!loading && !exhausted && index >= showings.length - 4) void load(true);
         return () => {
             clearTimeout(t);
         };
-    }, [current?.id]);
+    }, [currentShowing?.uid]);
 
     // Messages from cards (protocol v1).
     useEffect(() => {
         const onMessage = (e: MessageEvent) => {
             if (!isCardMessage(e.data)) return;
             const msg = e.data;
-            // Only a mounted card may speak; the id comes from the bridge we injected into its document.
+            // Only a mounted card may speak; the uid comes from the bridge we injected into its document.
             const frame = frames.current.get(msg.card);
             if (!frame || (e.source !== null && frame.contentWindow !== e.source)) return;
-            const card = cards.find((c) => c.id === msg.card);
+            const card = showings.find((s) => s.uid === msg.card)?.card;
             if (!card) return;
             if (msg.type === "play") void sound.play(card, msg.src);
             if (msg.type === "answer") {
@@ -121,11 +136,11 @@ export function Feed() {
         return () => {
             window.removeEventListener("message", onMessage);
         };
-    }, [cards, sound, events]);
+    }, [showings, sound, events]);
 
-    const onFrame = useCallback((id: string, frame: HTMLIFrameElement | null) => {
-        if (frame) frames.current.set(id, frame);
-        else frames.current.delete(id);
+    const onFrame = useCallback((uid: string, frame: HTMLIFrameElement | null) => {
+        if (frame) frames.current.set(uid, frame);
+        else frames.current.delete(uid);
     }, []);
 
     const scrollTo = (i: number) => {
@@ -178,9 +193,10 @@ export function Feed() {
 
     const slots = useMemo(
         () =>
-            cards.map((card, i) => (
+            showings.map(({ uid, card }, i) => (
                 <CardSlot
-                    key={card.id}
+                    key={uid}
+                    uid={uid}
                     card={card}
                     index={i}
                     mounted={i >= index - BEHIND && i <= index + AHEAD}
@@ -188,10 +204,10 @@ export function Feed() {
                     onFrame={onFrame}
                 />
             )),
-        [cards, index, onFrame],
+        [showings, index, onFrame],
     );
 
-    if (error && cards.length === 0) {
+    if (error && showings.length === 0) {
         return (
             <div className="end">
                 <h2>Лента не загрузилась</h2>
@@ -207,8 +223,8 @@ export function Feed() {
         <>
             <div className="feed" ref={feedRef}>
                 {slots}
-                {(exhausted || (!loading && cards.length === 0)) && (
-                    <section className="slot" data-index={cards.length}>
+                {(exhausted || (!loading && showings.length === 0)) && (
+                    <section className="slot" data-index={showings.length}>
                         <div className="end">
                             <h2>На сегодня всё</h2>
                             <p>
@@ -221,7 +237,7 @@ export function Feed() {
                         </div>
                     </section>
                 )}
-                {loading && cards.length === 0 && <div className="center">Загружаю…</div>}
+                {loading && showings.length === 0 && <div className="center">Загружаю…</div>}
             </div>
             {current && (
                 <Rail

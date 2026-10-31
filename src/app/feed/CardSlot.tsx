@@ -6,28 +6,30 @@ import { CARD_PROTOCOL, cardDocument, type ShellMessage } from "./cardFrame.ts";
 import { STREAM_TITLES } from "./format.ts";
 
 export interface CardSlotProps {
+    /** Unique per showing: the same card may come round again later in the session. */
+    uid: string;
     card: FeedCard;
     index: number;
     mounted: boolean;
     active: boolean;
-    onFrame: (cardId: string, frame: HTMLIFrameElement | null) => void;
+    onFrame: (uid: string, frame: HTMLIFrameElement | null) => void;
 }
 
 export function postToCard(frame: HTMLIFrameElement | null, msg: ShellMessage): void {
     frame?.contentWindow?.postMessage({ mijnfeed: CARD_PROTOCOL, ...msg }, "*");
 }
 
-export const CardSlot = memo(function CardSlot({ card, index, mounted, active, onFrame }: CardSlotProps) {
+export const CardSlot = memo(function CardSlot({ uid, card, index, mounted, active, onFrame }: CardSlotProps) {
     const ref = useRef<HTMLIFrameElement>(null);
 
     useEffect(() => {
         if (!mounted) return;
         const frame = ref.current;
-        onFrame(card.id, frame);
+        onFrame(uid, frame);
         return () => {
-            onFrame(card.id, null);
+            onFrame(uid, null);
         };
-    }, [mounted, card.id, onFrame]);
+    }, [mounted, uid, onFrame]);
 
     useEffect(() => {
         if (!mounted) return;
@@ -47,7 +49,7 @@ export const CardSlot = memo(function CardSlot({ card, index, mounted, active, o
                     ref={ref}
                     title={`${title} ${index + 1}`}
                     sandbox="allow-scripts"
-                    srcDoc={cardDocument(card)}
+                    srcDoc={cardDocument(card, uid)}
                     loading="eager"
                     onLoad={() => {
                         postToCard(ref.current, { type: active ? "active" : "inactive" });

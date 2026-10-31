@@ -12,6 +12,7 @@ describe("CardSlot", () => {
         const onFrame = vi.fn();
         const { container, rerender } = render(
             <CardSlot
+                uid="nl:a#1"
                 card={deckCard("a", { meta: { isNew: true } })}
                 index={2}
                 mounted={false}
@@ -25,6 +26,7 @@ describe("CardSlot", () => {
 
         rerender(
             <CardSlot
+                uid="nl:a#1"
                 card={deckCard("a", { meta: { isNew: true } })}
                 index={2}
                 mounted
@@ -34,11 +36,12 @@ describe("CardSlot", () => {
         );
         const frame = container.querySelector("iframe")!;
         expect(frame.getAttribute("sandbox")).toBe("allow-scripts");
-        expect(frame.getAttribute("srcdoc")).toContain('window.__cardId="nl:a"');
-        expect(onFrame).toHaveBeenCalledWith("nl:a", frame);
+        expect(frame.getAttribute("srcdoc")).toContain('window.__cardId="nl:a#1"');
+        expect(onFrame).toHaveBeenCalledWith("nl:a#1", frame);
 
         rerender(
             <CardSlot
+                uid="nl:a#1"
                 card={deckCard("a", { meta: { isNew: true } })}
                 index={2}
                 mounted={false}
@@ -46,18 +49,28 @@ describe("CardSlot", () => {
                 onFrame={onFrame}
             />,
         );
-        expect(onFrame).toHaveBeenLastCalledWith("nl:a", null);
+        expect(onFrame).toHaveBeenLastCalledWith("nl:a#1", null);
     });
 
     it("labels items by stream only and tolerates a missing frame when posting", () => {
         const { container, rerender } = render(
-            <CardSlot card={itemCard("n")} index={0} mounted active onFrame={vi.fn()} />,
+            <CardSlot uid="item:n#1" card={itemCard("n")} index={0} mounted active onFrame={vi.fn()} />,
         );
         expect(container.querySelector(".stream-tag")?.textContent).toBe("Новости");
-        rerender(<CardSlot card={{ ...itemCard("n"), stream: "weer" }} index={0} mounted active onFrame={vi.fn()} />);
+        rerender(
+            <CardSlot
+                uid="item:n#1"
+                card={{ ...itemCard("n"), stream: "weer" }}
+                index={0}
+                mounted
+                active
+                onFrame={vi.fn()}
+            />,
+        );
         expect(container.querySelector(".stream-tag")?.textContent).toBe("weer");
         rerender(
             <CardSlot
+                uid="nl:o#1"
                 card={deckCard("o", { meta: { isNew: true, overflow: true } })}
                 index={0}
                 mounted

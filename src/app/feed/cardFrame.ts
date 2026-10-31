@@ -89,12 +89,15 @@ export function tintOf(card: FeedCard): string {
     return TINTS[t] ?? t;
 }
 
-/** Full HTML document for the card's iframe (`srcdoc`). The card's own html may bring style and script tags. */
-export function cardDocument(card: FeedCard): string {
+/**
+ * Full HTML document for the card's iframe (`srcdoc`). The card's own html may bring style and script tags.
+ * `frameId` is what the bridge sends back as `card`; the shell uses it to tell apart repeated showings of one card.
+ */
+export function cardDocument(card: FeedCard, frameId: string = card.id): string {
     const fullPage = /<html[\s>]/i.test(card.html);
     if (fullPage) {
         // A producer shipped a whole page: only inject the bridge.
-        return card.html.replace(/<head([^>]*)>/i, `<head$1><script>${cardIdJs(card)}${BRIDGE_JS}</script>`);
+        return card.html.replace(/<head([^>]*)>/i, `<head$1><script>${cardIdJs(frameId)}${BRIDGE_JS}</script>`);
     }
     const hasInner = card.html.includes('class="inner"');
     const body = hasInner ? card.html : `<div class="inner">${card.html}</div>`;
@@ -102,8 +105,8 @@ export function cardDocument(card: FeedCard): string {
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <link rel="stylesheet" href="${FONTS}">
 <style>:root{--tint:${tintOf(card)}}${BASE_CSS}</style>
-<script>${cardIdJs(card)}${BRIDGE_JS}</script>
+<script>${cardIdJs(frameId)}${BRIDGE_JS}</script>
 </head><body>${body}</body></html>`;
 }
 
-const cardIdJs = (card: FeedCard) => `window.__cardId=${JSON.stringify(card.id)};`;
+const cardIdJs = (frameId: string) => `window.__cardId=${JSON.stringify(frameId)};`;
