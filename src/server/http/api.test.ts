@@ -175,7 +175,9 @@ describe("HTTP API", () => {
         const feed = await call("GET", "/v1/feed?limit=5");
         expect(feed.status).toBe(200);
         const cards = (feed.json as unknown as { cards: FeedCard[] }).cards;
-        expect(cards.map((c) => c.stream).sort()).toEqual(["news", "news", "nl"]);
+        // the quota (one facet of fiets), the "quota done" divider, then the sibling facet past the quota
+        expect(cards.map((c) => c.stream).sort()).toEqual(["news", "news", "nl", "nl", "nl"]);
+        expect(cards.filter((c) => c.stream === "nl").map((c) => c.kind)).toEqual(["word", "info", "word"]);
         const nl = cards.find((c) => c.stream === "nl")!;
         expect(nl.html).toBe("<p>fiets</p>");
         expect(nl.grades).toBeDefined();

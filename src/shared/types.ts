@@ -5,7 +5,7 @@ export type FacetState = "new" | "learning" | "review" | "relearning";
 
 /** A card as the viewer receives it in a playlist. */
 export interface FeedCard {
-    /** Opaque id: "nl:<presentationId>" | "nl:facet:<facetId>" (built-in presentation) | "item:<itemId>". */
+    /** Opaque id: "nl:<presentationId>" | "nl:facet:<facetId>" (built-in presentation) | "item:<itemId>" | "info:<id>" (service card). */
     id: string;
     stream: string;
     kind: string | null;

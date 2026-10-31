@@ -40,6 +40,7 @@ export const CardSlot = memo(function CardSlot({ card, index, mounted, active, o
             <div className="stream-tag">
                 <b>{title}</b>
                 {card.meta.isNew === true ? " · новое" : ""}
+                {card.meta.overflow === true ? " · сверх нормы" : ""}
             </div>
             {mounted ? (
                 <iframe

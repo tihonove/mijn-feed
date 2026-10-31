@@ -208,7 +208,7 @@ export function SettingsPage() {
                     </div>
                     <div className="field">
                         <label htmlFor="newPerDay">
-                            Новых карточек в день<output>{s.deck.newPerDay}</output>
+                            Норма новых в день<output>{s.deck.newPerDay}</output>
                         </label>
                         <input
                             id="newPerDay"

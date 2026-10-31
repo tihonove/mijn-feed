@@ -56,6 +56,16 @@ describe("CardSlot", () => {
         expect(container.querySelector(".stream-tag")?.textContent).toBe("Новости");
         rerender(<CardSlot card={{ ...itemCard("n"), stream: "weer" }} index={0} mounted active onFrame={vi.fn()} />);
         expect(container.querySelector(".stream-tag")?.textContent).toBe("weer");
+        rerender(
+            <CardSlot
+                card={deckCard("o", { meta: { isNew: true, overflow: true } })}
+                index={0}
+                mounted
+                active
+                onFrame={vi.fn()}
+            />,
+        );
+        expect(container.querySelector(".stream-tag")?.textContent).toBe("Nederlands · новое · сверх нормы");
         expect(() => {
             postToCard(null, { type: "active" });
         }).not.toThrow();

@@ -44,6 +44,8 @@ export interface PickedFacet {
     state: FacetState;
     due: number;
     isNew: boolean;
+    /** Served past the daily quota ("сверх нормы"): the viewer chose to go on. */
+    overflow: boolean;
     note: NoteView;
     presentation: PresentationView | null;
     grades: Record<Grade, number>;
@@ -71,6 +73,11 @@ export interface IDeckService {
     counts(): DayCounts;
     /** What to show now: due reviews first, new cards interleaved evenly; respects daily caps and sibling burying. */
     pick(limit: number): PickedFacet[];
+    /**
+     * What to show once `pick` has nothing left: new cards beyond the daily quota, then everything scheduled,
+     * soonest due first (an early review is still a review for FSRS). No caps, no sibling burying.
+     */
+    pickOverflow(limit: number, exclude: ReadonlySet<string>): PickedFacet[];
     markShown(presentationId: string): void;
     grade(facetId: string, grade: Grade): GradeResult;
     facetOfPresentation(presentationId: string): string | null;
@@ -152,6 +159,9 @@ export class DeckService implements IDeckService {
                 `${FACET_SELECT} WHERE f.suspended = 0 AND f.state = 0 ORDER BY f.created_at ASC, f.rowid ASC LIMIT ?`,
             ),
             newRandom: raw.prepare(`${FACET_SELECT} WHERE f.suspended = 0 AND f.state = 0 ORDER BY RANDOM() LIMIT ?`),
+            scheduled: raw.prepare(
+                `${FACET_SELECT} WHERE f.suspended = 0 AND f.state != 0 ORDER BY f.due ASC, f.rowid ASC LIMIT ?`,
+            ),
             newLevel: raw.prepare(
                 `${FACET_SELECT} WHERE f.suspended = 0 AND f.state = 0 ORDER BY n.level ASC NULLS LAST, f.created_at ASC, f.rowid ASC LIMIT ?`,
             ),
@@ -247,6 +257,19 @@ export class DeckService implements IDeckService {
         const newQuery = { added: this.q.newAdded, random: this.q.newRandom, level: this.q.newLevel }[deck.newOrder];
         const fresh = take(newQuery.all(newMax * 3 + 10) as unknown as FacetRow[], newMax);
         return interleave(reviews, fresh).map((row) => this.toPicked(row, now));
+    }
+
+    public pickOverflow(limit: number, exclude: ReadonlySet<string>): PickedFacet[] {
+        const now = this.clock.now();
+        const deck = this.settings.get().deck;
+        const newQuery = { added: this.q.newAdded, random: this.q.newRandom, level: this.q.newLevel }[deck.newOrder];
+        const want = limit + exclude.size;
+        const fresh = newQuery.all(want) as unknown as FacetRow[];
+        const scheduled = this.q.scheduled.all(want) as unknown as FacetRow[];
+        return [...fresh, ...scheduled]
+            .filter((r) => !exclude.has(r.id))
+            .slice(0, limit)
+            .map((row) => this.toPicked(row, now, true));
     }
 
     public markShown(presentationId: string): void {
@@ -428,7 +451,7 @@ export class DeckService implements IDeckService {
         return id;
     }
 
-    private toPicked(row: FacetRow, now: number): PickedFacet {
+    private toPicked(row: FacetRow, now: number, overflow = false): PickedFacet {
         const card: Card = reviveCard(fromJson<unknown>(row.card, {}));
         const p = this.q.bestPresentation.get(row.id) as PresentationRow | undefined;
         return {
@@ -438,6 +461,7 @@ export class DeckService implements IDeckService {
             state: STATE_NAMES[row.state] ?? "new",
             due: row.due,
             isNew: row.state === NEW_STATE,
+            overflow,
             note: {
                 kind: row.note_kind,
                 fields: fromJson(row.fields, {}),

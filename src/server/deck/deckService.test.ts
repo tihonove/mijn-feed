@@ -84,6 +84,19 @@ describe("DeckService.pick", () => {
         expect(deck.counts()).toMatchObject({ newDone: 1, newLeft: 1 });
     });
 
+    it("pickOverflow serves new cards past the quota, then scheduled ones soonest first, skipping excluded", () => {
+        settings.patch({ deck: { newPerDay: 1, learningSteps: ["1m", "10m"] } });
+        for (const id of ["a", "b", "c"]) deck.addNote(word(id));
+        const quota = deck.pick(10);
+        expect(quota.map((p) => p.noteId)).toEqual(["a"]);
+        deck.grade(quota[0]!.id, "good"); // a is now learning, due in 1 minute
+        const overflow = deck.pickOverflow(10, new Set());
+        expect(overflow.map((p) => `${p.noteId}:${p.state}`)).toEqual(["b:new", "c:new", "a:learning"]);
+        expect(overflow.every((p) => p.overflow)).toBe(true);
+        expect(deck.pick(10)).toEqual([]);
+        expect(deck.pickOverflow(1, new Set([overflow[0]!.id])).map((p) => p.noteId)).toEqual(["c"]);
+    });
+
     it("buries siblings: one facet per note per day", () => {
         deck.addNote(word("a", ["recognize", "produce"]));
         deck.addNote(word("b"));

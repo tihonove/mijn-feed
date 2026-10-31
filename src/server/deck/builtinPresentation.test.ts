@@ -10,6 +10,7 @@ const picked = (facet: string, fields: Record<string, unknown>): PickedFacet => 
     state: "new",
     due: 0,
     isNew: true,
+    overflow: false,
     note: { kind: "word", fields, tags: [], level: null },
     presentation: null,
     grades: { again: 0, hard: 0, good: 0, easy: 0 },

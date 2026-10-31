@@ -21,7 +21,10 @@ export const FeedServiceDIToken = token<IFeedService>("FeedService");
 export const DECK_STREAM = "nl";
 const EVENT_TYPES = new Set(["seen", "grade", "answer", "skip", "boring", "more"]);
 
-type CardRef = { stream: "nl"; facetId: string; presentationId: string | null } | { stream: "item"; itemId: string };
+type CardRef =
+    | { stream: "nl"; facetId: string; presentationId: string | null }
+    | { stream: "item"; itemId: string }
+    | { stream: "info"; infoId: string };
 
 export function parseCardId(id: string, deck: Pick<IDeckService, "facetOfPresentation">): CardRef {
     if (id.startsWith("nl:facet:")) return { stream: "nl", facetId: id.slice(9), presentationId: null };
@@ -32,6 +35,7 @@ export function parseCardId(id: string, deck: Pick<IDeckService, "facetOfPresent
         return { stream: "nl", facetId, presentationId };
     }
     if (id.startsWith("item:")) return { stream: "item", itemId: id.slice(5) };
+    if (id.startsWith("info:")) return { stream: "info", infoId: id.slice(5) };
     throw new HttpError(400, "bad card id");
 }
 
@@ -85,9 +89,7 @@ export class FeedService implements IFeedService {
             step: s.mixer.reactionStep,
         });
         const candidates: Record<string, FeedCard[]> = {};
-        if ((shares[DECK_STREAM] ?? 0) > 0) {
-            candidates[DECK_STREAM] = this.deck.pick(limit).map((f) => this.deckCard(f));
-        }
+        if ((shares[DECK_STREAM] ?? 0) > 0) candidates[DECK_STREAM] = this.deckCards(limit);
         for (const stream of Object.keys(shares)) {
             if (stream === DECK_STREAM) continue;
             candidates[stream] = this.items
@@ -104,6 +106,30 @@ export class FeedService implements IFeedService {
         return mix({ candidates, shares, maxRun: s.mixer.maxRun, limit }).map((m) => m.item);
     }
 
+    /** The deck's share of the playlist: the daily quota, and past it a divider and the overflow. */
+    private deckCards(limit: number): FeedCard[] {
+        const quota = this.deck.pick(limit);
+        if (quota.length >= limit) return quota.map((f) => this.deckCard(f));
+        const overflow = this.deck.pickOverflow(limit - quota.length, new Set(quota.map((f) => f.id)));
+        if (overflow.length === 0) return quota.map((f) => this.deckCard(f));
+        return [...quota.map((f) => this.deckCard(f)), this.quotaDoneCard(), ...overflow.map((f) => this.deckCard(f))];
+    }
+
+    private quotaDoneCard(): FeedCard {
+        const c = this.deck.counts();
+        const done = c.newDone + c.reviewsDone;
+        return {
+            id: `info:quota:${c.dayStart}`,
+            stream: DECK_STREAM,
+            kind: "info",
+            html: `<div class="eyebrow"><span class="dot"></span>Норма</div>
+<div class="stage"><h1 class="word">🎉</h1><div class="meaning">Норма на сегодня сделана</div>
+<p class="hint">${done > 0 ? `${done} карточек позади. ` : ""}Дальше по желанию: новые сверх нормы и повторы наперёд. Устал — просто закрой.</p></div>`,
+            audio: null,
+            meta: { tint: "mint", divider: true },
+        };
+    }
+
     public event(cardId: string, event: FeedEvent): FeedEventResult {
         if (!EVENT_TYPES.has(event.type)) throw new HttpError(400, "event.type: seen|grade|answer|skip|boring|more");
         const ref = parseCardId(cardId, this.deck);
@@ -118,13 +144,18 @@ export class FeedService implements IFeedService {
                 result.due = g.due;
                 result.state = g.state;
             }
-        } else {
+        } else if (ref.stream === "item") {
             const item = this.items.get(ref.itemId);
             if (!item) throw new HttpError(404, "unknown card");
             tags = item.tags;
             if (event.type === "seen") this.items.markShown(ref.itemId);
         }
-        const stream = ref.stream === "nl" ? DECK_STREAM : (this.items.get(ref.itemId)?.stream ?? "item");
+        const stream =
+            ref.stream === "item"
+                ? (this.items.get(ref.itemId)?.stream ?? "item")
+                : ref.stream === "nl"
+                  ? DECK_STREAM
+                  : "info";
         this.q.insertEvent.run(
             cardId,
             stream,
@@ -161,6 +192,7 @@ export class FeedService implements IFeedService {
                 facetId: f.id,
                 noteId: f.noteId,
                 isNew: f.isNew,
+                overflow: f.overflow,
                 state: f.state,
                 tags: f.note.tags,
                 builtin: p === null,

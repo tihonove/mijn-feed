@@ -81,6 +81,36 @@ describe("FeedService.playlist", () => {
     });
 });
 
+describe("FeedService.playlist past the quota", () => {
+    it("continues with a divider and overflow cards once the quota is done, and only then", () => {
+        settings.patch({ deck: { newPerDay: 2 }, modes: { onlyStream: "nl" } });
+        for (const id of ["a", "b", "c", "d"]) addWord(id);
+        const cards = feed.playlist(10);
+        expect(cards.map((c) => [c.meta.noteId ?? c.kind, c.meta.overflow ?? c.meta.divider])).toEqual([
+            ["a", false],
+            ["b", false],
+            ["info", true],
+            ["c", true],
+            ["d", true],
+        ]);
+        const divider = cards[2]!;
+        expect(divider.id).toMatch(/^info:quota:\d+$/);
+        expect(divider.html).toContain("Норма на сегодня сделана");
+        expect(divider.grades).toBeUndefined();
+        // a full page from the quota alone has no divider
+        expect(feed.playlist(2).map((c) => c.kind)).toEqual(["word", "word"]);
+        // the divider is accepted as a card for events and recorded under its own stream
+        expect(feed.event(divider.id, { type: "seen" })).toEqual({ ok: true });
+        expect(feed.event(divider.id, { type: "grade", grade: "good" })).toEqual({ ok: true });
+    });
+
+    it("has no divider when there is nothing past the quota", () => {
+        settings.patch({ modes: { onlyStream: "nl" } });
+        addWord("a");
+        expect(feed.playlist(10).map((c) => c.kind)).toEqual(["word"]);
+    });
+});
+
 describe("FeedService.event", () => {
     it("routes grades and answers to the deck and marks presentations shown", () => {
         addWord("w");
@@ -134,5 +164,6 @@ describe("FeedService.event", () => {
         expect(parseCardId("nl:p1", stub)).toEqual({ stream: "nl", facetId: "f1", presentationId: "p1" });
         expect(parseCardId("nl:facet:f9", stub)).toEqual({ stream: "nl", facetId: "f9", presentationId: null });
         expect(parseCardId("item:i1", stub)).toEqual({ stream: "item", itemId: "i1" });
+        expect(parseCardId("info:quota:1", stub)).toEqual({ stream: "info", infoId: "quota:1" });
     });
 });

@@ -10,10 +10,10 @@ export default defineConfig({
             // Ratchet: autoUpdate raises the numbers after each coverage run; they never go down by hand.
             thresholds: {
                 autoUpdate: true,
-                statements: 96.28,
-                branches: 88.64,
-                functions: 94.1,
-                lines: 97.9,
+                statements: 96.35,
+                branches: 88.73,
+                functions: 94.24,
+                lines: 97.93,
             },
             reporter: ["text", "lcov", "json-summary", "text-summary"],
             include: ["src/**/*.ts", "src/**/*.tsx"],
