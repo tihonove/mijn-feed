@@ -1,4 +1,7 @@
 // Card fixtures: small presentations that exercise the card protocol the way real producers' cards do.
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
 import type { NoteInput } from "../src/shared/types.ts";
 
 /** A card whose script reports what the bridge told it: "script ran" → "active" / "inactive". */
@@ -64,4 +67,25 @@ export const bareCard = (id: string): NoteInput => ({
     kind: "word",
     fields: { word: id, article: "de", meaning: `перевод ${id}` },
     facets: [{ facet: "produce" }],
+});
+
+/** A frozen copy of a real production card (v2, "глагол на втором месте"): heavy CSS, a mount script, a timer. */
+export const realCard = (id = "v2"): NoteInput => ({
+    id,
+    kind: "grammar",
+    level: "A1",
+    tags: ["woordvolgorde"],
+    fields: { topic: "глагол на втором месте" },
+    facets: [
+        {
+            facet: "recognize",
+            presentations: [
+                {
+                    id: `${id}:seats`,
+                    html: readFileSync(resolve(import.meta.dirname, "cards/v2-seats.html"), "utf8"),
+                    meta: { tint: "teal", say: "Ik ga morgen naar huis." },
+                },
+            ],
+        },
+    ],
 });

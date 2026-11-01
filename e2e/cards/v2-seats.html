@@ -1,0 +1,193 @@
+<style>
+    /* ============ card: V2 seats ============ */
+    .seats {
+        position: relative;
+        height: 112px;
+        margin-top: 8px;
+    }
+    .seatrow {
+        position: absolute;
+        inset: auto 0 0 0;
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 6px;
+        height: 84px;
+    }
+    .seat {
+        border-radius: 14px 14px 6px 6px;
+        background: var(--fg-faint);
+        display: grid;
+        align-content: end;
+        justify-items: center;
+        padding-bottom: 8px;
+        font-size: 11px;
+        font-weight: 900;
+        color: var(--fg-dim);
+        letter-spacing: 0.1em;
+        position: relative;
+    }
+    .seat::before {
+        content: "";
+        position: absolute;
+        inset: 0 6px auto 6px;
+        height: 34px;
+        border-radius: 12px 12px 2px 2px;
+        background: rgba(255, 255, 255, 0.05);
+    }
+    .seat.v {
+        background: color-mix(in oklab, var(--tint) 35%, var(--bg));
+        color: var(--fg);
+        box-shadow: inset 0 0 0 2px var(--tint);
+    }
+    .blk {
+        position: absolute;
+        bottom: 40px;
+        width: calc(25% - 4.5px);
+        left: calc(var(--slot) * 25% + var(--slot) * 1.5px);
+        height: 44px;
+        border-radius: 12px;
+        display: grid;
+        place-items: center;
+        font-family: var(--display);
+        font-weight: 800;
+        font-size: clamp(13px, 3.6vw, 17px);
+        background: var(--fg);
+        color: var(--bg);
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+        transition:
+            left 0.9s cubic-bezier(0.65, -0.25, 0.3, 1.3),
+            transform 0.9s ease;
+        white-space: nowrap;
+        padding: 0 4px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .blk.verb {
+        background: var(--tint);
+        color: #1a0d00;
+    }
+    .blk.mover {
+        transition-delay: 0.05s;
+    }
+    .active .blk.verb {
+        animation: stick 1.8s ease-in-out infinite;
+    }
+    @keyframes stick {
+        50% {
+            transform: translateY(-3px);
+        }
+    }
+    .sent {
+        font-family: var(--display);
+        font-size: clamp(18px, 5.2vw, 24px);
+        font-weight: 800;
+        min-height: 1.3em;
+        transition: opacity 0.3s;
+    }
+    .sent .v {
+        color: var(--tint);
+        text-decoration: underline;
+        text-decoration-thickness: 3px;
+        text-underline-offset: 4px;
+    }
+    .sent .ru {
+        display: block;
+        font-family: var(--body);
+        font-weight: 700;
+        font-size: 14px;
+        margin-top: 2px;
+    }
+</style>
+<div class="eyebrow"><span class="dot"></span>Грамматика</div>
+<div class="stage">
+    <div class="sent" id="v2sent"></div>
+    <div class="seats" id="v2">
+        <div class="seatrow">
+            <div class="seat">1</div>
+            <div class="seat v">2 · глагол</div>
+            <div class="seat">3</div>
+            <div class="seat">4</div>
+        </div>
+        <div class="blk mover" data-i="0" style="--slot: 0">Ik</div>
+        <div class="blk verb" data-i="1" style="--slot: 1">ga</div>
+        <div class="blk mover" data-i="2" style="--slot: 2">morgen</div>
+        <div class="blk" data-i="3" style="--slot: 3">naar huis</div>
+    </div>
+</div>
+<div class="caption">
+    <h2>Глагол сидит на стуле №2. Всегда.</h2>
+    <p>
+        Кто бы ни занял первое место, глагол не сдвинется. Если вперёд выходит <b>morgen</b>, то подлежащее
+        <b>ik</b> пересаживается за глагол. Это называется инверсия, и она в голландском каждый день.
+    </p>
+</div>
+<script>
+    (function () {
+        var ICON = {
+            play: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>',
+            sound: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>',
+            check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+            again: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>',
+        };
+        // Helpers the demo's mount functions call: the shell plays the card's audio, the quiz speaks its own nouns.
+        function playCard() {
+            card.send({ type: "play" });
+        }
+        function speakText(text) {
+            try {
+                var u = new SpeechSynthesisUtterance(text);
+                u.lang = "nl-NL";
+                u.rate = 0.88;
+                var v = speechSynthesis.getVoices().find(function (v) {
+                    return /^nl/i.test(v.lang);
+                });
+                if (v) u.voice = v;
+                speechSynthesis.cancel();
+                speechSynthesis.speak(u);
+            } catch (e) {}
+        }
+        var mount = (el) => {
+            const sent = el.querySelector("#v2sent");
+            const blocks = [...el.querySelectorAll(".blk")];
+            const states = [
+                {
+                    slots: [0, 1, 2, 3],
+                    html: '<span>Ik <span class="v">ga</span> morgen naar huis.</span><span class="ru">Я завтра иду домой.</span>',
+                },
+                {
+                    slots: [2, 1, 0, 3],
+                    html: '<span>Morgen <span class="v">ga</span> ik naar huis.</span><span class="ru">Завтра я иду домой. Глагол остался вторым.</span>',
+                },
+            ];
+            let i = 0,
+                t;
+            const apply = () => {
+                const s = states[i];
+                blocks.forEach((b, k) => b.style.setProperty("--slot", s.slots[k]));
+                sent.innerHTML = s.html;
+            };
+            apply();
+            return {
+                start() {
+                    clearInterval(t);
+                    t = setInterval(() => {
+                        i = (i + 1) % states.length;
+                        apply();
+                    }, 3200);
+                },
+                stop() {
+                    clearInterval(t);
+                },
+            };
+        };
+        var el = document.querySelector(".stage");
+        var ctl = mount(el, {}) || {};
+        card.on("active", function () {
+            ctl.start && ctl.start();
+        });
+        card.on("inactive", function () {
+            ctl.stop && ctl.stop();
+        });
+        if (card.active && ctl.start) ctl.start();
+    })();
+</script>

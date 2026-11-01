@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test";
 
-import { bareCard, quizCard, scriptedCard } from "./cards.ts";
+import { bareCard, quizCard, realCard, scriptedCard } from "./cards.ts";
 import { type AppServer, expect, test } from "./fixtures.ts";
 
 const slotFrame = (page: Page, index: number) => page.locator(`.slot[data-index="${index}"] iframe`).contentFrame();
@@ -78,4 +78,22 @@ test("the global sound switch is saved on the server; reactions give feedback", 
     await expect.poll(async () => (await server.settings()).sound.enabled).toBe(true);
     await page.getByRole("button", { name: /скучно/ }).click();
     await expect(page.getByText("Поняла, такого поменьше")).toBeVisible();
+});
+
+test("a real production card: the word-order animation runs while active and the sentence alternates", async ({
+    page,
+    server,
+}) => {
+    await server.addNote(realCard("v2"));
+    await server.patchSettings({ deck: { newOrder: "added" } });
+    await page.reload();
+    for (let i = 0; i < 3; i++) {
+        await page.getByRole("button", { name: /хорошо/ }).click(); // aap, noot, mies
+        await expect(page.locator(`.slot[data-index="${i + 1}"]`)).toBeInViewport({ ratio: 0.6 });
+    }
+    const seats = slotFrame(page, 3);
+    await expect(seats.locator("html.active")).toBeAttached();
+    await expect(seats.locator("#v2sent")).toContainText("Ik ga morgen naar huis.");
+    await expect(seats.locator(".blk.verb")).toHaveText("ga");
+    await expect(seats.locator("#v2sent")).toContainText("Morgen ga ik naar huis.", { timeout: 6000 });
 });
