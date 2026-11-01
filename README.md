@@ -38,7 +38,9 @@
 
 Грань без подачи показывается встроенной простой карточкой. Подача — HTML‑фрагмент; оболочка добавляет
 базовые стили (классы `.word .ipa .meaning .ex .nl .ru .eyebrow .stage .caption .chips`) и мостик `card`:
-`card.on("active", fn)`, `card.send({type:"play"})`, `card.send({type:"answer", correct:true})`.
+`card.on("active", fn)`, `card.send({type:"play"})`, `card.send({type:"play", text:"twaalf"})` (произнести кусочек),
+`card.send({type:"play", auto:true})` (автозапуск: только при включённом звуке), `card.send({type:"answer", correct:true})`.
+Звук всегда играет оболочка, по одному источнику за раз; карточке не нужен свой `speechSynthesis`.
 Пока карточка на экране, на `<html>` висит класс `active` — на него вешаются CSS‑анимации.
 В `meta` подачи: `tint` (oranje | teal | mustard | pink | lilac | mint | любой цвет), `say` (текст для озвучки,
 если нет mp3), `title`.

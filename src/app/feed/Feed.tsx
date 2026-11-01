@@ -35,6 +35,8 @@ export function Feed() {
     const frames = useRef(new Map<string, HTMLIFrameElement>());
     const seen = useRef(new Set<string>());
     const seq = useRef(0);
+    const soundOnRef = useRef(false);
+    soundOnRef.current = soundOn;
     /** Position at which the last "load more" was issued: one request per step near the end, retried as the viewer moves. */
     const loadedAt = useRef<number | null>(null);
     const indexRef = useRef(0);
@@ -135,7 +137,10 @@ export function Feed() {
             if (!frame || (e.source !== null && frame.contentWindow !== e.source)) return;
             const card = showings.find((s) => s.uid === msg.card)?.card;
             if (!card) return;
-            if (msg.type === "play") void sound.play(card, msg.src);
+            if (msg.type === "play") {
+                if (msg.auto && !soundOnRef.current) return; // the card wanted to autoplay, but sound is off
+                void sound.play(card, { src: msg.src, text: msg.text });
+            }
             if (msg.type === "answer") {
                 void events.send(card.id, { type: "answer", correct: msg.correct }).then((r) => {
                     announce(r, msg.correct ? "Верно" : "Мимо");
@@ -198,7 +203,7 @@ export function Feed() {
     };
 
     const replay = () => {
-        if (current) void sound.play(current);
+        if (current) void sound.play(current, { force: true });
     };
 
     const slots = useMemo(

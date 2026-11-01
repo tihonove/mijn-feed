@@ -9,7 +9,12 @@ export type ShellMessage =
     { type: "active" } | { type: "inactive" } | { type: "theme"; tokens: Record<string, string> };
 /** Card → shell. */
 export type CardMessage =
-    { type: "ready" } | { type: "play"; src?: string } | { type: "answer"; correct: boolean } | { type: "reveal" };
+    | { type: "ready" }
+    /** Play the card's sound, or `src`, or speak `text`. `auto` marks a request not caused by a tap (e.g. on
+     * "active"): the shell honours it only when the global sound is on. */
+    | { type: "play"; src?: string; text?: string; auto?: boolean }
+    | { type: "answer"; correct: boolean }
+    | { type: "reveal" };
 
 export const isCardMessage = (data: unknown): data is CardMessage & { mijnfeed: number; card: string } => {
     if (typeof data !== "object" || data === null) return false;

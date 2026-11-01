@@ -136,8 +136,12 @@ describe("Feed", () => {
         };
         post({ mijnfeed: CARD_PROTOCOL, card: "nl:a#1", type: "play" });
         expect(speech.spoken).toEqual(["a"]);
-        post({ mijnfeed: CARD_PROTOCOL, card: "nl:zzz#1", type: "play" }); // unknown card: ignored
+        post({ mijnfeed: CARD_PROTOCOL, card: "nl:a#1", type: "play", auto: true }); // sound is off: ignored
         expect(speech.spoken).toEqual(["a"]);
+        post({ mijnfeed: CARD_PROTOCOL, card: "nl:a#1", type: "play", text: "twaalf" }); // a piece of the card
+        expect(speech.spoken).toEqual(["a", "twaalf"]);
+        post({ mijnfeed: CARD_PROTOCOL, card: "nl:zzz#1", type: "play" }); // unknown card: ignored
+        expect(speech.spoken).toEqual(["a", "twaalf"]);
         post({ mijnfeed: CARD_PROTOCOL, card: "nl:a", type: "answer", correct: true }); // bare id: not a showing
         expect(api.event).not.toHaveBeenCalledWith("nl:a", { type: "answer", correct: true });
         post({ mijnfeed: CARD_PROTOCOL, card: "nl:a#1", type: "answer", correct: true });
