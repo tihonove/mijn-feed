@@ -45,3 +45,26 @@ test("navigation: the top bar switches between feed, stats and settings", async 
     await page.getByRole("link", { name: /Mijn Feed/ }).click();
     await expect(page.getByRole("heading", { name: "На сегодня всё" })).toBeVisible();
 });
+
+test("coming back from settings lands on the same card, without reloading the feed", async ({ page, server }) => {
+    await server.patchSettings({ deck: { newPerDay: 10 }, modes: { onlyStream: "nl" } });
+    for (const id of ["een", "twee", "drie", "vier", "vijf"]) await server.addNote(scriptedCard(id));
+    await page.goto("/auth/dev");
+    await expect(page.getByLabel("Карточка 1")).toBeVisible();
+    const feedRequests: string[] = [];
+    page.on("request", (r) => {
+        if (r.url().includes("/v1/feed?")) feedRequests.push(r.url());
+    });
+    for (let i = 0; i < 2; i++) {
+        await page.getByRole("button", { name: /хорошо/ }).click();
+        await expect(page.locator(`.slot[data-index="${i + 1}"]`)).toBeInViewport({ ratio: 0.6 });
+    }
+    await page.getByTitle("Настройки").click();
+    await expect(page.getByRole("heading", { name: "Настройки" })).toBeVisible();
+    await expect(page.getByRole("button", { name: /хорошо/ })).toHaveCount(0);
+    await page.getByRole("link", { name: /Mijn Feed/ }).click();
+    await expect(page.locator('.slot[data-index="2"]')).toBeInViewport({ ratio: 0.6 });
+    await expect(page.locator('.slot[data-index="2"] iframe').contentFrame().locator("h1.word")).toHaveText("drie");
+    await expect(page.locator('.slot[data-index="2"] iframe').contentFrame().locator("#state")).toHaveText("active");
+    expect(feedRequests.length).toBeLessThanOrEqual(2); // prefetches near the end, never a reload from scratch
+});

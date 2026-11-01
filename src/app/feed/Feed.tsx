@@ -21,7 +21,12 @@ interface Showing {
     card: FeedCard;
 }
 
-export function Feed() {
+export interface FeedProps {
+    /** Another page is open on top: keep the cards and the scroll position, but no rail, no sound, no active card. */
+    hidden?: boolean;
+}
+
+export function Feed({ hidden = false }: FeedProps) {
     const { api, sound, events } = useServices();
     const [showings, setShowings] = useState<Showing[]>([]);
     const [index, setIndex] = useState(0);
@@ -84,6 +89,10 @@ export function Feed() {
     }, [load]);
 
     useEffect(() => sound.onChange(setPlaying), [sound]);
+
+    useEffect(() => {
+        if (hidden) sound.stop();
+    }, [hidden, sound]);
 
     // Which slot is on screen.
     useEffect(() => {
@@ -215,11 +224,11 @@ export function Feed() {
                     card={card}
                     index={i}
                     mounted={i >= index - BEHIND && i <= index + AHEAD}
-                    active={i === index}
+                    active={i === index && !hidden}
                     onFrame={onFrame}
                 />
             )),
-        [showings, index, onFrame],
+        [showings, index, onFrame, hidden],
     );
 
     if (error && showings.length === 0) {
@@ -236,7 +245,7 @@ export function Feed() {
 
     return (
         <>
-            <div className="feed" ref={feedRef}>
+            <div className="feed" ref={feedRef} inert={hidden} aria-hidden={hidden}>
                 {slots}
                 {((exhausted && index >= showings.length - 1) || (!loading && showings.length === 0)) && (
                     <section className="slot" data-index={showings.length}>
@@ -254,7 +263,7 @@ export function Feed() {
                 )}
                 {loading && showings.length === 0 && <div className="center">Загружаю…</div>}
             </div>
-            {current && (
+            {current && !hidden && (
                 <Rail
                     card={current}
                     soundOn={soundOn}

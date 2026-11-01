@@ -3,7 +3,7 @@ import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { App, routeFromHash } from "./App.tsx";
-import { fakeApi, makeServices, Provide, stubIntersectionObserver } from "./testUtils.tsx";
+import { deckCard, fakeApi, makeServices, Provide, SETTINGS, stubIntersectionObserver } from "./testUtils.tsx";
 
 beforeEach(() => {
     stubIntersectionObserver();
@@ -72,5 +72,30 @@ describe("App", () => {
         });
         await screen.findByText("Статистика");
         expect(api.stats).toHaveBeenCalled();
+    });
+
+    it("keeps the feed mounted under the pages, so coming back does not reload it", async () => {
+        const api = fakeApi({ feed: vi.fn(() => Promise.resolve({ cards: [deckCard("a")], settings: SETTINGS })) });
+        render(
+            <Provide services={makeServices(api).services}>
+                <App />
+            </Provide>,
+        );
+        await screen.findByLabelText("Карточка 1");
+        expect(screen.getByText("хорошо")).toBeTruthy();
+        act(() => {
+            window.location.hash = "#settings";
+            window.dispatchEvent(new HashChangeEvent("hashchange"));
+        });
+        await screen.findByText("Настройки");
+        expect(screen.getByLabelText("Карточка 1")).toBeTruthy(); // still there, behind the page
+        expect(screen.queryByText("хорошо")).toBeNull(); // but without the rail
+        const loads = api.feed.mock.calls.length;
+        act(() => {
+            window.location.hash = "";
+            window.dispatchEvent(new HashChangeEvent("hashchange"));
+        });
+        await screen.findByText("хорошо");
+        expect(api.feed.mock.calls.length).toBe(loads); // no reload from scratch
     });
 });

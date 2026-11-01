@@ -51,9 +51,18 @@ export function App() {
     return (
         <>
             <TopBar route={route} me={auth.me} />
-            {route === "feed" && <Feed />}
-            {route === "settings" && <SettingsPage />}
-            {route === "stats" && <StatsPage />}
+            {/* The feed stays mounted under the other pages, so coming back lands on the same card. */}
+            <Feed hidden={route !== "feed"} />
+            {route === "settings" && (
+                <div className="overlay">
+                    <SettingsPage />
+                </div>
+            )}
+            {route === "stats" && (
+                <div className="overlay">
+                    <StatsPage />
+                </div>
+            )}
         </>
     );
 }

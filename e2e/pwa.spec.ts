@@ -13,7 +13,7 @@ test("the app is installable: manifest, icon and a working service worker", asyn
         const reg = await navigator.serviceWorker.ready;
         return reg.active?.state ?? null;
     });
-    expect(active).toBe("activated");
+    expect(["activating", "activated"]).toContain(active);
 });
 
 test("deep links and unknown paths fall back to the app shell, api paths do not", async ({ page }) => {

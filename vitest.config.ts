@@ -11,8 +11,8 @@ export default defineConfig({
             thresholds: {
                 autoUpdate: true,
                 statements: 96.5,
-                branches: 89.35,
-                functions: 94.55,
+                branches: 89.4,
+                functions: 94.57,
                 lines: 98.06,
             },
             reporter: ["text", "lcov", "json-summary", "text-summary"],
