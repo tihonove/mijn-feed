@@ -6,7 +6,7 @@ import { type AppServer, expect, test } from "./fixtures.ts";
 const slotFrame = (page: Page, index: number) => page.locator(`.slot[data-index="${index}"] iframe`).contentFrame();
 
 async function seedThree(server: AppServer) {
-    await server.patchSettings({ deck: { newPerDay: 10 }, modes: { onlyStream: "nl" } });
+    await server.patchSettings({ deck: { newPerDay: 10, shuffle: false }, modes: { onlyStream: "nl" } });
     await server.addNote(scriptedCard("aap"));
     await server.addNote(quizCard("noot"));
     await server.addNote(bareCard("mies"));

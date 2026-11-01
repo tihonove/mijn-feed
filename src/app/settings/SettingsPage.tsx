@@ -293,6 +293,15 @@ export function SettingsPage() {
                         >
                             Одна грань заметки в день
                         </button>
+                        <button
+                            className="chip"
+                            aria-pressed={s.deck.shuffle}
+                            onClick={() => {
+                                deck({ shuffle: !s.deck.shuffle });
+                            }}
+                        >
+                            Слегка перемешивать
+                        </button>
                     </div>
                     <div className="field">
                         <label htmlFor="leech">

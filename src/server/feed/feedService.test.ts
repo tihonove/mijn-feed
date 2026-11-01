@@ -18,7 +18,7 @@ beforeEach(() => {
     clock = new FakeClock();
     const db = new SqliteDatabase(":memory:");
     settings = new SettingsService(db, clock);
-    deck = new DeckService(db, clock, settings, new FsrsScheduler(false));
+    deck = new DeckService(db, clock, settings, new FsrsScheduler(false), () => 0.5);
     items = new ItemService(db, clock);
     feed = new FeedService(db, clock, settings, deck, items);
 });

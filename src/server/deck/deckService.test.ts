@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { DAY, FakeClock, MINUTE } from "../clock.ts";
 import { SqliteDatabase } from "../db/database.ts";
 import { SettingsService } from "../settings/settingsService.ts";
-import { DeckService, interleave } from "./deckService.ts";
+import { DeckService, interleave, jitterSort } from "./deckService.ts";
 import { FsrsScheduler } from "./scheduler.ts";
 
 let clock: FakeClock;
@@ -25,7 +25,7 @@ beforeEach(() => {
     clock = new FakeClock("2026-10-31T10:00:00Z");
     const db = new SqliteDatabase(":memory:");
     settings = new SettingsService(db, clock);
-    deck = new DeckService(db, clock, settings, new FsrsScheduler(false));
+    deck = new DeckService(db, clock, settings, new FsrsScheduler(false), () => 0.5);
 });
 
 describe("DeckService.addNote", () => {
@@ -231,6 +231,94 @@ describe("DeckService.state and stats", () => {
         expect(stats.today).toMatchObject({ reviewsDone: 2 });
         expect(stats.retention30d).toBe(0);
         expect(stats.reviewsPerDay30d.reduce((a, b) => a + b, 0)).toBe(3);
+    });
+});
+
+describe("DeckService soft shuffle", () => {
+    // a small deterministic generator so the test is repeatable but the order still wobbles
+    const lcg = (seed: number) => () => {
+        seed = (seed * 1664525 + 1013904223) % 4294967296;
+        return seed / 4294967296;
+    };
+    const shuffled = () => {
+        const db = new SqliteDatabase(":memory:");
+        settings = new SettingsService(db, clock);
+        settings.patch({ deck: { newPerDay: 20, burySiblings: false } });
+        return new DeckService(db, clock, settings, new FsrsScheduler(false), lcg(7));
+    };
+
+    it("varies the order of new cards between picks but keeps old additions ahead of fresh ones", () => {
+        deck = shuffled();
+        for (let i = 0; i < 40; i++) {
+            deck.addNote(word(`n${String(i).padStart(2, "0")}`));
+            clock.advance(MINUTE);
+        }
+        const orders = new Set(
+            Array.from({ length: 5 }, () =>
+                deck
+                    .pick(10)
+                    .map((p) => p.noteId)
+                    .join(","),
+            ),
+        );
+        expect(orders.size).toBeGreaterThan(1);
+        // every pick of 10 draws from the oldest ~30: a card can drift at most 2 * limit positions
+        for (const o of orders) for (const id of o.split(",")) expect(Number(id.slice(1))).toBeLessThan(30);
+        settings.patch({ deck: { shuffle: false } });
+        const strict = deck.pick(10).map((p) => p.noteId);
+        expect(strict).toEqual(Array.from({ length: 10 }, (_, i) => `n${String(i).padStart(2, "0")}`));
+        expect(deck.pick(10).map((p) => p.noteId)).toEqual(strict);
+    });
+
+    it("mixes reviews due the same day but keeps a long-overdue card first, also past the quota", () => {
+        deck = shuffled();
+        settings.patch({ deck: { learningSteps: ["1m"] } });
+        const graduate = (id: string) => {
+            const p = deck.pick(20).find((x) => x.noteId === id)!;
+            deck.grade(p.id, "good");
+            clock.advance(2 * MINUTE);
+            deck.grade(p.id, "good"); // review state, due in a few days
+        };
+        for (let i = 0; i < 8; i++) deck.addNote(word(`r${i}`));
+        graduate("r3");
+        clock.advance(5 * DAY); // r3 is scheduled days ahead of the rest
+        for (let i = 0; i < 8; i++) if (i !== 3) graduate(`r${i}`);
+        clock.advance(30 * DAY);
+        const picks = Array.from({ length: 5 }, () => deck.pick(10).map((p) => p.noteId));
+        expect(picks.every((ids) => ids[0] === "r3")).toBe(true);
+        expect(new Set(picks.map((ids) => ids.join(","))).size).toBeGreaterThan(1);
+        settings.patch({ deck: { reviewsPerDay: 0 } });
+        const overflow = deck.pickOverflow(10, new Set()).map((p) => p.noteId);
+        expect(overflow[0]).toBe("r3");
+        expect(overflow).toHaveLength(8);
+    });
+
+    it("leaves the 'random' new order to the database", () => {
+        deck = shuffled();
+        settings.patch({ deck: { newOrder: "random" } });
+        for (const id of ["a", "b", "c"]) deck.addNote(word(id));
+        expect(deck.pick(10)).toHaveLength(3);
+    });
+});
+
+describe("jitterSort", () => {
+    it("keeps the order with a constant generator and never moves an item further than the spread", () => {
+        const rows = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+        expect(
+            jitterSort(
+                rows,
+                (r) => r,
+                3,
+                () => 0.5,
+            ),
+        ).toEqual(rows);
+        let x = 0.1;
+        const rng = () => (x = (x * 9301 + 49297) % 233280) / 233280;
+        const out = jitterSort(rows, (r) => r, 3, rng);
+        expect([...out].sort((a, b) => a - b)).toEqual(rows);
+        out.forEach((r, i) => {
+            expect(Math.abs(r - i)).toBeLessThanOrEqual(3);
+        });
     });
 });
 

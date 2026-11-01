@@ -6,7 +6,7 @@ import { expect, test } from "./fixtures.ts";
 const frame = (page: Page, index: number) => page.locator(`.slot[data-index="${index}"] iframe`).contentFrame();
 
 test.beforeEach(async ({ server }) => {
-    await server.patchSettings({ deck: { newPerDay: 1 }, modes: { onlyStream: "nl" } });
+    await server.patchSettings({ deck: { newPerDay: 1, shuffle: false }, modes: { onlyStream: "nl" } });
     for (const id of ["een", "twee", "drie"]) await server.addNote(scriptedCard(id));
 });
 

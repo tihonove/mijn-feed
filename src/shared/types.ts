@@ -49,6 +49,8 @@ export interface Settings {
         maximumInterval: number;
         newOrder: "added" | "random" | "level";
         burySiblings: boolean;
+        /** Soft shuffle: same-day reviews and the next new cards come in a slightly different order every time. */
+        shuffle: boolean;
         leechThreshold: number;
         dayStartHour: number;
         timezone: string;

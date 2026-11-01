@@ -47,7 +47,7 @@ test("navigation: the top bar switches between feed, stats and settings", async 
 });
 
 test("coming back from settings lands on the same card, without reloading the feed", async ({ page, server }) => {
-    await server.patchSettings({ deck: { newPerDay: 10 }, modes: { onlyStream: "nl" } });
+    await server.patchSettings({ deck: { newPerDay: 10, shuffle: false }, modes: { onlyStream: "nl" } });
     for (const id of ["een", "twee", "drie", "vier", "vijf"]) await server.addNote(scriptedCard(id));
     await page.goto("/auth/dev");
     await expect(page.getByLabel("Карточка 1")).toBeVisible();

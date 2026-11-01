@@ -64,6 +64,7 @@ describe("SettingsPage", () => {
         fireEvent.click(screen.getByText("4 кнопки как в Anki"));
         fireEvent.click(screen.getByText("2 кнопки + долгое нажатие"));
         fireEvent.click(screen.getByText("Одна грань заметки в день"));
+        fireEvent.click(screen.getByText("Слегка перемешивать"));
         await waitFor(() => {
             const patches = api.patchSettings.mock.calls.map((c) => c[0] as Record<string, unknown>);
             expect(patches[0]).toMatchObject({ modes: { onlyStream: "nl", mutedStreams: [] } });
@@ -73,6 +74,7 @@ describe("SettingsPage", () => {
             expect(patches[4]).toEqual({ grading: { buttons: 4 } });
             expect(patches[5]).toEqual({ grading: { buttons: 2 } });
             expect(patches[6]).toEqual({ deck: { burySiblings: false } });
+            expect(patches[7]).toEqual({ deck: { shuffle: false } });
         });
     });
 

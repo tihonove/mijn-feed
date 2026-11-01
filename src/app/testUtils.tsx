@@ -26,6 +26,7 @@ export const SETTINGS: Settings = {
         maximumInterval: 365,
         newOrder: "added",
         burySiblings: true,
+        shuffle: true,
         leechThreshold: 8,
         dayStartHour: 4,
         timezone: "Europe/Amsterdam",

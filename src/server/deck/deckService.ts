@@ -86,6 +86,8 @@ export interface IDeckService {
 }
 
 export const DeckServiceDIToken = token<IDeckService>("DeckService");
+/** Source of randomness for the soft shuffle: `Math.random` in the app, something fixed in tests. */
+export const RandomDIToken = token<() => number>("Random");
 
 interface FacetRow {
     id: string;
@@ -119,6 +121,7 @@ export class DeckService implements IDeckService {
         ClockDIToken,
         SettingsServiceDIToken,
         SchedulerDIToken,
+        RandomDIToken,
     ] as const;
 
     private readonly q;
@@ -128,6 +131,7 @@ export class DeckService implements IDeckService {
         private readonly clock: IClock,
         private readonly settings: ISettingsService,
         private readonly scheduler: IScheduler,
+        private readonly random: () => number,
     ) {
         const raw = db.raw;
         this.q = {
@@ -252,24 +256,45 @@ export class DeckService implements IDeckService {
             return out;
         };
         const reviewMax = Math.min(limit, counts.reviewsLeft);
-        const reviews = take(this.q.due.all(now, reviewMax * 3 + 10) as unknown as FacetRow[], reviewMax);
+        const dueRows = this.q.due.all(now, reviewMax * 3 + 10) as unknown as FacetRow[];
+        const reviews = take(this.shuffleScheduled(dueRows), reviewMax);
         const newMax = Math.min(limit - reviews.length, counts.newLeft);
-        const newQuery = { added: this.q.newAdded, random: this.q.newRandom, level: this.q.newLevel }[deck.newOrder];
-        const fresh = take(newQuery.all(newMax * 3 + 10) as unknown as FacetRow[], newMax);
+        const newRows = this.newQuery().all(newMax * 3 + 10) as unknown as FacetRow[];
+        const fresh = take(this.shuffleNew(newRows, newMax), newMax);
         return interleave(reviews, fresh).map((row) => this.toPicked(row, now));
     }
 
     public pickOverflow(limit: number, exclude: ReadonlySet<string>): PickedFacet[] {
         const now = this.clock.now();
-        const deck = this.settings.get().deck;
-        const newQuery = { added: this.q.newAdded, random: this.q.newRandom, level: this.q.newLevel }[deck.newOrder];
         const want = limit + exclude.size;
-        const fresh = newQuery.all(want) as unknown as FacetRow[];
-        const scheduled = this.q.scheduled.all(want) as unknown as FacetRow[];
+        const fresh = this.shuffleNew(this.newQuery().all(want) as unknown as FacetRow[], limit);
+        const scheduled = this.shuffleScheduled(this.q.scheduled.all(want) as unknown as FacetRow[]);
         return [...fresh, ...scheduled]
             .filter((r) => !exclude.has(r.id))
             .slice(0, limit)
             .map((row) => this.toPicked(row, now, true));
+    }
+
+    private newQuery() {
+        const order = this.settings.get().deck.newOrder;
+        return { added: this.q.newAdded, random: this.q.newRandom, level: this.q.newLevel }[order];
+    }
+
+    /**
+     * Soft shuffle of new cards: each one drifts up to about `2 * limit` positions from where the configured
+     * order put it, so the next few are not the same every time while old additions still come before new ones.
+     * The "random" order is already random; nothing to do there.
+     */
+    private shuffleNew(rows: FacetRow[], limit: number): FacetRow[] {
+        const deck = this.settings.get().deck;
+        if (!deck.shuffle || deck.newOrder === "random") return rows;
+        return jitterSort(rows, (_, i) => i, Math.max(4, limit * 2), this.random);
+    }
+
+    /** Soft shuffle of scheduled cards: anything due within the same day may swap places; long overdue stays first. */
+    private shuffleScheduled(rows: FacetRow[]): FacetRow[] {
+        if (!this.settings.get().deck.shuffle) return rows;
+        return jitterSort(rows, (r) => r.due, DAY, this.random);
     }
 
     public markShown(presentationId: string): void {
@@ -477,6 +502,19 @@ export class DeckService implements IDeckService {
 }
 
 /** Spreads `fresh` evenly between `reviews`, keeping each list's order. */
+/** Sorts by `key + random() * spread`: a stable order with a random wobble no wider than `spread`. */
+export function jitterSort<T>(
+    rows: T[],
+    key: (row: T, index: number) => number,
+    spread: number,
+    random: () => number,
+): T[] {
+    return rows
+        .map((row, i) => ({ row, k: key(row, i) + random() * spread }))
+        .sort((a, b) => a.k - b.k)
+        .map((x) => x.row);
+}
+
 export function interleave<T>(reviews: T[], fresh: T[]): T[] {
     if (fresh.length === 0) return [...reviews];
     if (reviews.length === 0) return [...fresh];

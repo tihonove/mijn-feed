@@ -51,6 +51,7 @@ beforeAll(async () => {
         mediaDir: join(dir, "media"),
         appDir,
         clock: new FakeClock(),
+        random: () => 0.5, // keep the configured order: the soft shuffle has its own tests
         fetch: () => Promise.reject(new Error("no network in tests")),
         auth: {
             ownerEmails: ["owner@example.com"],
